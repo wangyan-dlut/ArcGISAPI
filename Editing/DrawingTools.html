@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width,user-scalable=no">
+    <!--The viewport meta tag is used to improve the presentation and behavior of the samples
+      on iOS devices-->
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1,user-scalable=no">
+    <title>Maps Toolbar</title>
+
+    <link rel="stylesheet" href="http://js.arcgis.com/3.13/dijit/themes/nihilo/nihilo.css">
+    <link rel="stylesheet" href="http://js.arcgis.com/3.13/esri/css/esri.css">
+    <style>
+        html, body, #mainWindow {
+            font-family: sans-serif;
+            height: 100%;
+            width: 100%;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
+        #header {
+            height: 80px;
+            overflow: auto;
+            padding: 0.5em;
+        }
+    </style>
+
+    <script src="http://js.arcgis.com/3.13/"></script>
+    <script>
+        var map, toolbar, symbol, geomTask;
+
+        require([
+            "esri/map",
+            "esri/toolbars/draw",
+            "esri/graphic",
+
+            "esri/symbols/SimpleMarkerSymbol",
+            "esri/symbols/SimpleLineSymbol",
+            "esri/symbols/SimpleFillSymbol",
+
+            "dojo/parser", "dijit/registry",
+
+            "dijit/layout/BorderContainer", "dijit/layout/ContentPane",
+            "dijit/form/Button", "dijit/WidgetSet", "dojo/domReady!"
+        ], function(
+                Map, Draw, Graphic,
+                SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol,
+                parser, registry
+        ) {
+            parser.parse();
+
+            map = new Map("map", {
+                basemap: "streets",
+                center: [-15.469, 36.428],
+                zoom: 3
+            });
+
+            /**
+             * 3-23 所有的 arcGIS 类都有 on() 这个函数，目前看来应该是起到将动作和函数连接起来的功能，如下面的map，当发生“load”时，创建Toolbar
+             * 另外一点，
+             */
+            map.on("load", createToolbar);
+
+            // loop through all dijits, connect onClick event
+            // listeners for buttons to activate drawing tools
+            registry.forEach(function(d) {
+                // d is a reference to a dijit
+                // could be a layout container or a button
+                /**
+                 * 让所有的 按键 在触发"click"动作时，调用activateTool函数
+                 */
+                if ( d.declaredClass === "dijit.form.Button" ) {
+                    d.on("click", activateTool);
+                }
+            });
+
+            function activateTool() {
+                var tool = this.label.toUpperCase().replace(/ /g, "_"); //获取激活的画笔类型
+                toolbar.activate(Draw[tool]);//激活对应的画笔，同时也会给鼠标添加提示
+                map.hideZoomSlider();//隐藏地图的缩放按键
+            }
+
+            function createToolbar(themap) {
+                /**
+                 * Draw是画笔类，可以画任何东西
+                 * 从这里可以看出，画笔和按键是独立的，需要人为的获取是哪个按键被激活了，然后在去激活相应的画笔
+                 * 同时Draw类应该只是记录鼠标的动作，或者鼠标经过的点，可以提供给其他的类供使用，如这里提供给Graphic
+                 * @type {Draw}
+                 */
+                toolbar = new Draw(map);
+                //根据目前的理解，Draw这个类应该是每秒刷新的，每当一个"draw-end"触发时，便画到地图上
+                toolbar.on("draw-end", addToMap);
+            }
+
+            function addToMap(evt) {
+                var symbol;
+                toolbar.deactivate();
+                map.showZoomSlider(); //显示缩放按钮
+                switch (evt.geometry.type) {
+                    case "point":
+                    case "multipoint":
+                        symbol = new SimpleMarkerSymbol();
+                        break;
+                    case "polyline":
+                        symbol = new SimpleLineSymbol();
+                        break;
+                    default:
+                        symbol = new SimpleFillSymbol();
+                        break;
+                }
+                /**
+                 * todo  symbol 意义不明
+                 * @type {Graphic}
+            */
+                var graphic = new Graphic(evt.geometry, symbol);
+                map.graphics.add(graphic);
+            }
+        });
+    </script>
+</head>
+<body class="nihilo">
+
+<div id="mainWindow" data-dojo-type="dijit/layout/BorderContainer" data-dojo-props="design:'headline'">
+    <div id="header" data-dojo-type="dijit/layout/ContentPane" data-dojo-props="region:'top'">
+        <span>Draw:<br /></span>
+        <button data-dojo-type="dijit/form/Button">Point</button>
+        <button data-dojo-type="dijit/form/Button">Multi Point</button>
+        <button data-dojo-type="dijit/form/Button">Line</button>
+        <button data-dojo-type="dijit/form/Button">Polyline</button>
+        <button data-dojo-type="dijit/form/Button">Polygon</button>
+        <button data-dojo-type="dijit/form/Button">Freehand Polyline</button>
+        <button data-dojo-type="dijit/form/Button">Freehand Polygon</button>
+        <!--The Arrow,Triangle,Circle and Ellipse types all draw with the polygon symbol-->
+        <button data-dojo-type="dijit/form/Button">Arrow</button>
+        <button data-dojo-type="dijit/form/Button">Triangle</button>
+        <button data-dojo-type="dijit/form/Button">Circle</button>
+        <button data-dojo-type="dijit/form/Button">Ellipse</button>
+    </div>
+    <div id="map" data-dojo-type="dijit/layout/ContentPane" data-dojo-props="region:'center'"></div>
+</div>
+
+</body>
+</html>
